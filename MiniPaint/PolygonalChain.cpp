@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "Polyline.h"
+#include "PolygonalChain.h"
 
 PolygonalChain::PolygonalChain()
 {
@@ -34,4 +34,11 @@ void PolygonalChain::AddVertex(int x, int y)
 	point->x = x;
 	point->y = y;
 	vertices.push_back(point);
+}
+
+void PolygonalChain::GetLastVertex(LPPOINT point)
+{
+	POINT* lastVertex = vertices.back();
+	point->x = lastVertex->x;
+	point->y = lastVertex->y;
 }

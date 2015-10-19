@@ -148,9 +148,9 @@
     <ClInclude Include="Canvas.h" />
     <ClInclude Include="Line.h" />
     <ClInclude Include="MiniPaint.h" />
-    <ClInclude Include="Polyline.h" />
+    <ClInclude Include="PolygonalChain.h" />
     <ClInclude Include="Resource.h" />
-    <ClInclude Include="Shape.h" />
+    <ClInclude Include="PaintAction.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
@@ -158,8 +158,8 @@
     <ClCompile Include="Canvas.cpp" />
     <ClCompile Include="Line.cpp" />
     <ClCompile Include="MiniPaint.cpp" />
-    <ClCompile Include="Polyline.cpp" />
-    <ClCompile Include="Shape.cpp" />
+    <ClCompile Include="PolygonalChain.cpp" />
+    <ClCompile Include="PaintAction.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>

@@ -3,6 +3,7 @@
 
 #include "stdafx.h"
 #include "MiniPaint.h"
+#include "Canvas.h"
 
 #define MAX_LOADSTRING 100
 
@@ -10,12 +11,17 @@
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
+int controlMargin = 10;							// distance between child windows and window borders
+HWND g_hWnd;									// handle to the main window
+HMENU hMenu;
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
+BOOL				CreateCanvas();
+void				ExclusiveCheckMenuItem(UINT uIDCheckItem);
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
@@ -24,8 +30,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 {
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
-
-    // TODO: Place code here.
 
     // Initialize global strings
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -54,8 +58,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     return (int) msg.wParam;
 }
-
-
 
 //
 //  FUNCTION: MyRegisterClass()
@@ -97,16 +99,19 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
    hInst = hInstance; // Store instance handle in our global variable
 
-   HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
+   g_hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
       CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
 
-   if (!hWnd)
-   {
+   if (!g_hWnd)
       return FALSE;
-   }
 
-   ShowWindow(hWnd, nCmdShow);
-   UpdateWindow(hWnd);
+   hMenu = GetMenu(g_hWnd);
+
+   if (!CreateCanvas())
+	   return FALSE;
+
+   ShowWindow(g_hWnd, nCmdShow);
+   UpdateWindow(g_hWnd);
 
    return TRUE;
 }
@@ -137,6 +142,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             case IDM_EXIT:
                 DestroyWindow(hWnd);
                 break;
+			case ID_TOOLS_REFRESH:
+				Refresh();
+				break;
+			case ID_TOOLS_CLEAR:
+				Clear();
+				break;
+			case ID_TOOLS_PENCIL:
+				ExclusiveCheckMenuItem(ID_TOOLS_PENCIL);
+				SetPaintTool(PaintTool::Pencil);
+				break;
+			case ID_TOOLS_LINE:
+				ExclusiveCheckMenuItem(ID_TOOLS_LINE);
+				SetPaintTool(PaintTool::Line);
+				break;
             default:
                 return DefWindowProc(hWnd, message, wParam, lParam);
             }
@@ -177,4 +196,29 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
         break;
     }
     return (INT_PTR)FALSE;
+}
+
+//Calculates the size and position of the canvas window and creates it
+BOOL CreateCanvas()
+{
+	RECT clientArea;
+	if (!GetClientRect(g_hWnd, &clientArea))
+		return FALSE;
+
+	int x, y, height, width;
+	x = controlMargin;
+	y = controlMargin;
+	height = clientArea.bottom - clientArea.top - 2 * controlMargin;
+	width = clientArea.right - clientArea.left - 2 * controlMargin;
+
+	return CreateCanvasWindow(hInst, g_hWnd, x, y, width, height);
+}
+
+//Checks a menu item and unchecks all the rest.
+void ExclusiveCheckMenuItem(UINT uIDCheckItem)
+{
+	CheckMenuItem(hMenu, ID_TOOLS_PENCIL, MF_UNCHECKED);
+	CheckMenuItem(hMenu, ID_TOOLS_LINE, MF_UNCHECKED);
+
+	CheckMenuItem(hMenu, uIDCheckItem, MF_CHECKED);
 }

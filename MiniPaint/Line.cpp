@@ -9,12 +9,12 @@ Line::Line()
 	y2 = 0;
 }
 
-Line::Line(int x1, int y1, int x2, int y2)
+Line::Line(int x1, int y1)
 {
 	Line::x1 = x1;
 	Line::y1 = y1;
-	Line::x2 = x2;
-	Line::y2 = y2;
+	Line::x2 = x1;
+	Line::y2 = y1;
 }
 
 Line::~Line()
