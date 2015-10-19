@@ -29,6 +29,9 @@ PaintTool currentTool = PaintTool::None;
 std::list<PaintAction*> actions;
 std::list<PaintAction*> undoneActions;
 
+COLORREF penColor = RGB(0, 0, 0);
+HPEN currentPen;
+
 
 ATOM				RegisterCanvasAreaClass();
 LRESULT CALLBACK	CanvasWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
@@ -120,110 +123,18 @@ LRESULT CALLBACK CanvasWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lP
 		break;
 	case WM_LBUTTONDOWN:
 	{
-		isDragging = true;
-
-		TRACKMOUSEEVENT trmEvent;
-		trmEvent.cbSize = sizeof(TRACKMOUSEEVENT);
-		trmEvent.dwFlags = TME_LEAVE;
-		trmEvent.hwndTrack = hWnd;
-		TrackMouseEvent(&trmEvent);
-
-		POINT mousePos;
-		GetCursorPos(&mousePos);
-		ScreenToClient(hWnd, &mousePos);
-
-		switch (currentTool)
-		{
-		case PaintTool::Pencil:
-		{
-			MoveToEx(bufferDC, mousePos.x + horizontalScrollPosition, mousePos.y + verticalScrollPosition, nullptr);
-
-			PolygonalChain* pl = new PolygonalChain();
-			pl->AddVertex(mousePos.x + horizontalScrollPosition, mousePos.y + verticalScrollPosition);
-			actions.push_back(pl);
-		}
-		break;
-		case PaintTool::Line:
-		{
-			Line* line = new Line(mousePos.x + horizontalScrollPosition, mousePos.y + verticalScrollPosition);
-			actions.push_back(line);
-		}
-		break;
-		default:
-			break;
-		}
-		
+		OnLButtonDown();
 	}
 	break;
 	case WM_MOUSELEAVE:
 	case WM_LBUTTONUP:
 	{
-		isDragging = false;
-
-		switch (currentTool)
-		{
-		case PaintTool::Line:
-		{
-			actions.back()->Draw(bufferDC, 0, 0);
-		}
-		break;
-		default:
-			break;
-		}
+		OnLButtonUp();
 	}
 	break;
 	case WM_MOUSEMOVE:
 	{
-		if (isDragging)
-		{
-			POINT mousePos;
-			GetCursorPos(&mousePos);
-			ScreenToClient(hWnd, &mousePos);
-
-			//area to be invalidated
-			RECT invRect;
-
-			switch (currentTool)
-			{
-			case PaintTool::Pencil:
-			{
-				PolygonalChain* pl = (PolygonalChain*)actions.back();
-				POINT prevPoint;
-				pl->GetLastVertex(&prevPoint);
-				pl->AddVertex(mousePos.x + horizontalScrollPosition, mousePos.y + verticalScrollPosition);
-
-				LineTo(bufferDC, mousePos.x + horizontalScrollPosition, mousePos.y + verticalScrollPosition);
-
-				invRect.bottom = max(prevPoint.y - verticalScrollPosition, mousePos.y) + 1;
-				invRect.top = min(prevPoint.y - verticalScrollPosition, mousePos.y) - 1;
-				invRect.left = min(prevPoint.x - horizontalScrollPosition, mousePos.x) - 1;
-				invRect.right = max(prevPoint.x - horizontalScrollPosition, mousePos.x) + 1;
-			}
-			break;
-			case PaintTool::Line:
-			{
-				Line* line = (Line*)actions.back();
-
-				POINT prevPoint;
-				prevPoint.x = line->x2;
-				prevPoint.y = line->y2;
-
-				line->x2 = mousePos.x + horizontalScrollPosition;
-				line->y2 = mousePos.y + verticalScrollPosition;
-
-				invRect.bottom = max(max(line->y1 - verticalScrollPosition, prevPoint.y - verticalScrollPosition), mousePos.y) + 1;
-				invRect.top = min(min(line->y1 - verticalScrollPosition, prevPoint.y - verticalScrollPosition), mousePos.y) - 1;
-				invRect.left = min(min(line->x1 - horizontalScrollPosition, prevPoint.x - horizontalScrollPosition), mousePos.x) - 1;
-				invRect.right = max(max(line->x1 - horizontalScrollPosition, prevPoint.x - horizontalScrollPosition), mousePos.x) + 1;
-			}
-			break;
-			default:
-				break;
-			}
-
-			InvalidateRect(hWnd, &invRect, TRUE);
-			UpdateWindow(hWnd);
-		}
+		OnMouseMove(lParam);
 	}
 	break;
 	default:
@@ -232,24 +143,131 @@ LRESULT CALLBACK CanvasWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lP
 	return 0;
 }
 
-void OnMosueWheel(WPARAM wParam)
+void OnMouseWheel(WPARAM wParam)
 {
+	short int rotationDistance = (short int)HIWORD(wParam);
+	int downKeys = LOWORD(wParam);
 
+	if (downKeys & MK_CONTROL)
+	{
+		;
+	}
+	else
+	{
+		if (downKeys & MK_SHIFT)
+			rotationDistance > 0 ? ScrollLineLeft() : ScrollLineRight();
+		else
+			rotationDistance > 0 ? ScrollLineUp() : ScrollLineDown();
+	}
+
+	ConfigureScrollBars();
+	RequestRepaintWindow();
 }
 
 void OnLButtonDown()
 {
+	isDragging = true;
 
+	TRACKMOUSEEVENT trmEvent;
+	trmEvent.cbSize = sizeof(TRACKMOUSEEVENT);
+	trmEvent.dwFlags = TME_LEAVE;
+	trmEvent.hwndTrack = thisWindow;
+	TrackMouseEvent(&trmEvent);
+
+	POINT mousePos;
+	GetCursorPos(&mousePos);
+	ScreenToClient(thisWindow, &mousePos);
+
+	switch (currentTool)
+	{
+	case PaintTool::Pencil:
+	{
+		MoveToEx(bufferDC, mousePos.x + horizontalScrollPosition, mousePos.y + verticalScrollPosition, nullptr);
+
+		PolygonalChain* pl = new PolygonalChain();
+		pl->AddVertex(mousePos.x + horizontalScrollPosition, mousePos.y + verticalScrollPosition);
+		actions.push_back(pl);
+	}
+	break;
+	case PaintTool::Line:
+	{
+		Line* line = new Line(mousePos.x + horizontalScrollPosition, mousePos.y + verticalScrollPosition);
+		actions.push_back(line);
+	}
+	break;
+	default:
+		break;
+	}
 }
 
 void OnLButtonUp()
 {
+	isDragging = false;
 
+	switch (currentTool)
+	{
+	case PaintTool::Line:
+	{
+		actions.back()->Draw(bufferDC, 0, 0);
+	}
+	break;
+	default:
+		break;
+	}
 }
 
 void OnMouseMove(LPARAM lParam)
 {
-	
+	if (isDragging)
+	{
+		POINT mousePos;
+		GetCursorPos(&mousePos);
+		ScreenToClient(thisWindow, &mousePos);
+
+		//area to be invalidated
+		RECT invRect;
+
+		switch (currentTool)
+		{
+		case PaintTool::Pencil:
+		{
+			PolygonalChain* pl = (PolygonalChain*)actions.back();
+			POINT prevPoint;
+			pl->GetLastVertex(&prevPoint);
+			pl->AddVertex(mousePos.x + horizontalScrollPosition, mousePos.y + verticalScrollPosition);
+
+			LineTo(bufferDC, mousePos.x + horizontalScrollPosition, mousePos.y + verticalScrollPosition);
+
+			invRect.bottom = max(prevPoint.y - verticalScrollPosition, mousePos.y) + 1;
+			invRect.top = min(prevPoint.y - verticalScrollPosition, mousePos.y) - 1;
+			invRect.left = min(prevPoint.x - horizontalScrollPosition, mousePos.x) - 1;
+			invRect.right = max(prevPoint.x - horizontalScrollPosition, mousePos.x) + 1;
+		}
+		break;
+		case PaintTool::Line:
+		{
+			Line* line = (Line*)actions.back();
+
+			POINT prevPoint;
+			prevPoint.x = line->x2;
+			prevPoint.y = line->y2;
+
+			line->x2 = mousePos.x + horizontalScrollPosition;
+			line->y2 = mousePos.y + verticalScrollPosition;
+
+			invRect.bottom = max(max(line->y1 - verticalScrollPosition, prevPoint.y - verticalScrollPosition), mousePos.y) + 1;
+			invRect.top = min(min(line->y1 - verticalScrollPosition, prevPoint.y - verticalScrollPosition), mousePos.y) - 1;
+			invRect.left = min(min(line->x1 - horizontalScrollPosition, prevPoint.x - horizontalScrollPosition), mousePos.x) - 1;
+			invRect.right = max(max(line->x1 - horizontalScrollPosition, prevPoint.x - horizontalScrollPosition), mousePos.x) + 1;
+		}
+		break;
+		default:
+			break;
+		}
+
+		InvalidateRect(thisWindow, &invRect, TRUE);
+		UpdateWindow(thisWindow);
+	}
 }
 
 //Handles the paint message (WM_PAINT).
@@ -257,6 +275,7 @@ void OnPaint()
 {
 	PAINTSTRUCT ps;
 	HDC hdc = BeginPaint(thisWindow, &ps);
+	SelectObject(hdc, currentPen);
 
 	RECT clientArea;
 	GetClientRect(thisWindow, &clientArea);
@@ -494,6 +513,8 @@ void ClearBuffer()
 //Initializes the buffer DC.
 void InitBufferDC()
 {
+	currentPen = CreatePen(PS_SOLID, 0, penColor);
+
 	PAINTSTRUCT ps;
 	HDC hdc = BeginPaint(thisWindow, &ps);
 
@@ -533,4 +554,27 @@ void RefreshBuffer()
 void SetPaintTool(PaintTool tool)
 {
 	currentTool = tool;
+}
+
+void SetPenColor(COLORREF color)
+{
+	penColor = color;
+
+	currentPen = CreatePen(PS_SOLID, 0, color);
+	SelectObject(bufferDC, currentPen);
+}
+
+COLORREF GetPenColor()
+{
+	return penColor;
+}
+
+BOOL ResizeWindow(int x, int y, int width, int height)
+{
+	if (!MoveWindow(thisWindow, x, y, width, height, TRUE))
+		return FALSE;
+
+	ConfigureScrollBars();
+	
+	return TRUE;
 }

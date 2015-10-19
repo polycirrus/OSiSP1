@@ -22,6 +22,8 @@ LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 BOOL				CreateCanvas();
 void				ExclusiveCheckMenuItem(UINT uIDCheckItem);
+BOOL				ShowColorDialog(COLORREF* color);
+void				OnSize();
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
@@ -156,22 +158,28 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				ExclusiveCheckMenuItem(ID_TOOLS_LINE);
 				SetPaintTool(PaintTool::Line);
 				break;
+			case ID_TOOLS_PENCOLOR:
+			{
+				COLORREF color = GetPenColor();
+				if (ShowColorDialog(&color))
+					SetPenColor(color);
+			}
+				break;
             default:
                 return DefWindowProc(hWnd, message, wParam, lParam);
+				break;
             }
-        }
-        break;
-    case WM_PAINT:
-        {
-            PAINTSTRUCT ps;
-            HDC hdc = BeginPaint(hWnd, &ps);
-            // TODO: Add any drawing code that uses hdc here...
-            EndPaint(hWnd, &ps);
         }
         break;
     case WM_DESTROY:
         PostQuitMessage(0);
         break;
+	case WM_MOUSEWHEEL:
+		OnMouseWheel(wParam);
+		break;
+	case WM_SIZE:
+		OnSize();
+		break;
     default:
         return DefWindowProc(hWnd, message, wParam, lParam);
     }
@@ -221,4 +229,40 @@ void ExclusiveCheckMenuItem(UINT uIDCheckItem)
 	CheckMenuItem(hMenu, ID_TOOLS_LINE, MF_UNCHECKED);
 
 	CheckMenuItem(hMenu, uIDCheckItem, MF_CHECKED);
+}
+
+//Initializes and shows a color dialog box, assignes the result to color if the dialog is successful.
+BOOL ShowColorDialog(COLORREF* color)
+{
+	COLORREF a[16];
+	CHOOSECOLOR c;
+	ZeroMemory(&c, sizeof(c));
+	c.lStructSize = sizeof(c);
+	c.hwndOwner = g_hWnd;
+	c.rgbResult = *color;
+	c.Flags = CC_RGBINIT;
+	c.lpCustColors = (LPDWORD)a;
+
+	if (ChooseColor(&c))
+	{
+		*color = c.rgbResult;
+		return TRUE;
+	}
+	
+	return FALSE;
+}
+
+//Handles the window resize message (WM_SIZE).
+void OnSize()
+{
+	RECT clientRect;
+	GetClientRect(g_hWnd, &clientRect);
+
+	int x = 0, y = 0, height = 0, width = 0;
+	x = controlMargin;
+	y = controlMargin;
+	width = clientRect.right - clientRect.left - 2 * controlMargin;
+	height = clientRect.bottom - clientRect.top - 2 * controlMargin;
+
+	ResizeWindow(x, y, width, height);
 }
