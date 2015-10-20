@@ -3,6 +3,7 @@
 #include <list>
 #include "Line.h"
 #include "PolygonalChain.h"
+#include <ctgmath>
 
 
 HINSTANCE hInstance;
@@ -23,6 +24,7 @@ int horizontalScrollMax;
 int horizontalScrollLineSize = 20;
 double zoomFactor = 1;
 double zoomDelta = 0.2;
+int invalidationExcess = 3;
 
 bool isDragging;
 
@@ -55,7 +57,7 @@ void				ZoomIn();
 void				ZoomOut();
 void				OnZoomFactorChanged(double oldZoomFactor);
 void				GetAdjustedCursorPos(LPPOINT point);
-
+void				AdjustedToClientPoint(LPPOINT point);
 BOOL CreateCanvasWindow(HINSTANCE hInst, HWND parentHWnd, int x, int y, int width, int height)
 {
 	if (isWindowCreated)
@@ -180,23 +182,22 @@ void OnLButtonDown()
 	TrackMouseEvent(&trmEvent);
 
 	POINT mousePos;
-	GetCursorPos(&mousePos);
-	ScreenToClient(thisWindow, &mousePos);
+	GetAdjustedCursorPos(&mousePos);
 
 	switch (currentTool)
 	{
 	case PaintTool::Pencil:
 	{
-		MoveToEx(bufferDC, mousePos.x + horizontalScrollPosition, mousePos.y + verticalScrollPosition, nullptr);
+		MoveToEx(bufferDC, mousePos.x, mousePos.y, nullptr);
 
 		PolygonalChain* pl = new PolygonalChain();
-		pl->AddVertex(mousePos.x + horizontalScrollPosition, mousePos.y + verticalScrollPosition);
+		pl->AddVertex(mousePos.x, mousePos.y);
 		actions.push_back(pl);
 	}
 	break;
 	case PaintTool::Line:
 	{
-		Line* line = new Line(mousePos.x + horizontalScrollPosition, mousePos.y + verticalScrollPosition);
+		Line* line = new Line(mousePos.x, mousePos.y);
 		actions.push_back(line);
 	}
 	break;
@@ -226,8 +227,7 @@ void OnMouseMove(LPARAM lParam)
 	if (isDragging)
 	{
 		POINT mousePos;
-		GetCursorPos(&mousePos);
-		ScreenToClient(thisWindow, &mousePos);
+		GetAdjustedCursorPos(&mousePos);
 
 		//area to be invalidated
 		RECT invRect;
@@ -239,31 +239,36 @@ void OnMouseMove(LPARAM lParam)
 			PolygonalChain* pl = (PolygonalChain*)actions.back();
 			POINT prevPoint;
 			pl->GetLastVertex(&prevPoint);
-			pl->AddVertex(mousePos.x + horizontalScrollPosition, mousePos.y + verticalScrollPosition);
+			pl->AddVertex(mousePos.x, mousePos.y);
 
-			LineTo(bufferDC, mousePos.x + horizontalScrollPosition, mousePos.y + verticalScrollPosition);
+			LineTo(bufferDC, mousePos.x, mousePos.y);
 
-			invRect.bottom = max(prevPoint.y - verticalScrollPosition, mousePos.y) + 1;
-			invRect.top = min(prevPoint.y - verticalScrollPosition, mousePos.y) - 1;
-			invRect.left = min(prevPoint.x - horizontalScrollPosition, mousePos.x) - 1;
-			invRect.right = max(prevPoint.x - horizontalScrollPosition, mousePos.x) + 1;
+			AdjustedToClientPoint(&prevPoint);
+			AdjustedToClientPoint(&mousePos);
+			invRect.bottom = max(prevPoint.y, mousePos.y) + invalidationExcess;
+			invRect.top = min(prevPoint.y, mousePos.y) - invalidationExcess;
+			invRect.left = min(prevPoint.x, mousePos.x) - invalidationExcess;
+			invRect.right = max(prevPoint.x, mousePos.x) + invalidationExcess;
 		}
 		break;
 		case PaintTool::Line:
 		{
 			Line* line = (Line*)actions.back();
 
-			POINT prevPoint;
-			prevPoint.x = line->x2;
-			prevPoint.y = line->y2;
-
-			line->x2 = mousePos.x + horizontalScrollPosition;
-			line->y2 = mousePos.y + verticalScrollPosition;
-
-			invRect.bottom = max(max(line->y1 - verticalScrollPosition, prevPoint.y - verticalScrollPosition), mousePos.y) + 1;
-			invRect.top = min(min(line->y1 - verticalScrollPosition, prevPoint.y - verticalScrollPosition), mousePos.y) - 1;
-			invRect.left = min(min(line->x1 - horizontalScrollPosition, prevPoint.x - horizontalScrollPosition), mousePos.x) - 1;
-			invRect.right = max(max(line->x1 - horizontalScrollPosition, prevPoint.x - horizontalScrollPosition), mousePos.x) + 1;
+			POINT P1, prevP2;
+			line->GetP1(&P1);
+			line->GetP2(&prevP2);
+			
+			line->x2 = mousePos.x;
+			line->y2 = mousePos.y;
+			
+			AdjustedToClientPoint(&P1);
+			AdjustedToClientPoint(&prevP2);
+			AdjustedToClientPoint(&mousePos);
+			invRect.bottom = max(max(P1.y, prevP2.y), mousePos.y) + invalidationExcess;
+			invRect.top = min(min(P1.y, prevP2.y), mousePos.y) - invalidationExcess;
+			invRect.left = min(min(P1.x, prevP2.x), mousePos.x) - invalidationExcess;
+			invRect.right = max(max(P1.x, prevP2.x), mousePos.x) + invalidationExcess;
 		}
 		break;
 		default:
@@ -300,9 +305,9 @@ void OnPaint()
 		case PaintTool::Line:
 		{
 			Line* line = (Line*)actions.back();
-
-			MoveToEx(hdc, line->x1 * zoomFactor, line->y1 * zoomFactor, nullptr);
-			LineTo(hdc, line->x2 * zoomFactor, line->y2 * zoomFactor);
+			
+			MoveToEx(hdc, round(line->x1 * zoomFactor), round(line->y1 * zoomFactor), nullptr);
+			LineTo(hdc, round(line->x2 * zoomFactor), round(line->y2 * zoomFactor));
 		}
 		break;
 		default:
@@ -389,7 +394,7 @@ void ConfigureScrollBars()
 	siVert.nPos = verticalScrollPosition;         // scrollbar thumb position
 	siVert.nPage = clientRect.bottom - clientRect.top;        // number of lines in a page (i.e. rows of text in window)
 	siVert.nMin = 0;
-	siVert.nMax = canvasHeight * zoomFactor;
+	siVert.nMax = round(canvasHeight * zoomFactor);
 	SetScrollInfo(thisWindow, SB_VERT, &siVert, TRUE);
 
 	SCROLLINFO siHorz;
@@ -398,7 +403,7 @@ void ConfigureScrollBars()
 	siHorz.nPos = horizontalScrollPosition;         // scrollbar thumb position
 	siHorz.nPage = clientRect.right - clientRect.left;        // number of lines in a page (i.e. rows of text in window)
 	siHorz.nMin = 0;
-	siHorz.nMax = canvasWidth * zoomFactor;
+	siHorz.nMax = round(canvasWidth * zoomFactor);
 	SetScrollInfo(thisWindow, SB_HORZ, &siHorz, TRUE);
 }
 
@@ -605,8 +610,8 @@ void ZoomOut()
 
 void OnZoomFactorChanged(double oldZoomFactor)
 {
-	verticalScrollPosition = verticalScrollPosition / oldZoomFactor * zoomFactor;
-	horizontalScrollPosition = horizontalScrollPosition / oldZoomFactor * zoomFactor;
+	verticalScrollPosition = round(verticalScrollPosition / oldZoomFactor * zoomFactor);
+	horizontalScrollPosition = round(horizontalScrollPosition / oldZoomFactor * zoomFactor);
 
 	ConfigureScrollBars();
 	RequestRepaintWindow();
@@ -617,6 +622,13 @@ void GetAdjustedCursorPos(LPPOINT point)
 {
 	GetCursorPos(point);
 	ScreenToClient(thisWindow, point);
-	point->x = (point->x + horizontalScrollPosition) / zoomFactor;
-	point->y = (point->y + verticalScrollPosition) / zoomFactor;
+	point->x = round((point->x + horizontalScrollPosition) / zoomFactor);
+	point->y = round((point->y + verticalScrollPosition) / zoomFactor);
+}
+
+//Reverses scroll and zoom adjustments.
+void AdjustedToClientPoint(LPPOINT point)
+{
+	point->x = round(point->x * zoomFactor - horizontalScrollPosition);
+	point->y = round(point->y * zoomFactor - verticalScrollPosition);
 }

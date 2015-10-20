@@ -12,5 +12,7 @@ public:
 	~Line();
 
 	void Draw(HDC hdc, int xOffset, int yOffset);
+	void GetP1(LPPOINT point);
+	void GetP2(LPPOINT point);
 };
 

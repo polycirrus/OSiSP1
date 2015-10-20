@@ -26,3 +26,15 @@ void Line::Draw(HDC hdc, int xOffset, int yOffset)
 	MoveToEx(hdc, x1 + xOffset, y1 + yOffset, nullptr);
 	LineTo(hdc, x2 + xOffset, y2 + yOffset);
 }
+
+void Line::GetP1(LPPOINT point)
+{
+	point->x = x1;
+	point->y = y1;
+}
+
+void Line::GetP2(LPPOINT point)
+{
+	point->x = x2;
+	point->y = y2;
+}
