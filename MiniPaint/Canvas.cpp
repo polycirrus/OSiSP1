@@ -22,6 +22,7 @@ int horizontalScrollPosition = 0;
 int horizontalScrollMax;
 int horizontalScrollLineSize = 20;
 double zoomFactor = 1;
+double zoomDelta = 0.2;
 
 bool isDragging;
 
@@ -50,6 +51,10 @@ void				RequestRepaintWindow();
 void				ClearBuffer();
 void				InitBufferDC();
 void				RefreshBuffer();
+void				ZoomIn();
+void				ZoomOut();
+void				OnZoomFactorChanged(double oldZoomFactor);
+void				GetAdjustedCursorPos(LPPOINT point);
 
 BOOL CreateCanvasWindow(HINSTANCE hInst, HWND parentHWnd, int x, int y, int width, int height)
 {
@@ -148,11 +153,11 @@ void OnMouseWheel(WPARAM wParam)
 	short int rotationDistance = (short int)HIWORD(wParam);
 	int downKeys = LOWORD(wParam);
 
-	if (downKeys & MK_CONTROL)
+	if (downKeys & MK_CONTROL)		//Ctrl(+Shift)+Wheel - zoom
 	{
-		;
+		rotationDistance > 0 ? ZoomIn() : ZoomOut();
 	}
-	else
+	else							//scroll
 	{
 		if (downKeys & MK_SHIFT)
 			rotationDistance > 0 ? ScrollLineLeft() : ScrollLineRight();
@@ -296,8 +301,8 @@ void OnPaint()
 		{
 			Line* line = (Line*)actions.back();
 
-			MoveToEx(hdc, line->x1, line->y1, nullptr);
-			LineTo(hdc, line->x2, line->y2);
+			MoveToEx(hdc, line->x1 * zoomFactor, line->y1 * zoomFactor, nullptr);
+			LineTo(hdc, line->x2 * zoomFactor, line->y2 * zoomFactor);
 		}
 		break;
 		default:
@@ -384,7 +389,7 @@ void ConfigureScrollBars()
 	siVert.nPos = verticalScrollPosition;         // scrollbar thumb position
 	siVert.nPage = clientRect.bottom - clientRect.top;        // number of lines in a page (i.e. rows of text in window)
 	siVert.nMin = 0;
-	siVert.nMax = canvasHeight;
+	siVert.nMax = canvasHeight * zoomFactor;
 	SetScrollInfo(thisWindow, SB_VERT, &siVert, TRUE);
 
 	SCROLLINFO siHorz;
@@ -393,7 +398,7 @@ void ConfigureScrollBars()
 	siHorz.nPos = horizontalScrollPosition;         // scrollbar thumb position
 	siHorz.nPage = clientRect.right - clientRect.left;        // number of lines in a page (i.e. rows of text in window)
 	siHorz.nMin = 0;
-	siHorz.nMax = canvasWidth;
+	siHorz.nMax = canvasWidth * zoomFactor;
 	SetScrollInfo(thisWindow, SB_HORZ, &siHorz, TRUE);
 }
 
@@ -577,4 +582,41 @@ BOOL ResizeWindow(int x, int y, int width, int height)
 	ConfigureScrollBars();
 	
 	return TRUE;
+}
+
+void ZoomIn()
+{
+	double oldZoomFactor = zoomFactor;
+	zoomFactor += zoomDelta;
+
+	OnZoomFactorChanged(oldZoomFactor);
+}
+
+void ZoomOut()
+{
+	if (zoomFactor < zoomDelta)
+		return;
+
+	double oldZoomFactor = zoomFactor;
+	zoomFactor -= zoomDelta;
+
+	OnZoomFactorChanged(oldZoomFactor);
+}
+
+void OnZoomFactorChanged(double oldZoomFactor)
+{
+	verticalScrollPosition = verticalScrollPosition / oldZoomFactor * zoomFactor;
+	horizontalScrollPosition = horizontalScrollPosition / oldZoomFactor * zoomFactor;
+
+	ConfigureScrollBars();
+	RequestRepaintWindow();
+}
+
+//Returns the cursor position adjusted to scroll positions and zoom factor
+void GetAdjustedCursorPos(LPPOINT point)
+{
+	GetCursorPos(point);
+	ScreenToClient(thisWindow, point);
+	point->x = (point->x + horizontalScrollPosition) / zoomFactor;
+	point->y = (point->y + verticalScrollPosition) / zoomFactor;
 }
