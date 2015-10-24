@@ -147,6 +147,7 @@
   <ItemGroup>
     <ClInclude Include="Canvas.h" />
     <ClInclude Include="Line.h" />
+    <ClInclude Include="MetafilePlayback.h" />
     <ClInclude Include="MiniPaint.h" />
     <ClInclude Include="PolygonalChain.h" />
     <ClInclude Include="Resource.h" />
@@ -157,6 +158,7 @@
   <ItemGroup>
     <ClCompile Include="Canvas.cpp" />
     <ClCompile Include="Line.cpp" />
+    <ClCompile Include="MetafilePlayback.cpp" />
     <ClCompile Include="MiniPaint.cpp" />
     <ClCompile Include="PolygonalChain.cpp" />
     <ClCompile Include="PaintAction.cpp" />

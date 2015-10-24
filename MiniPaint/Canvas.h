@@ -9,3 +9,5 @@ void SetPaintTool(PaintTool tool);
 void SetPenColor(COLORREF color);
 COLORREF GetPenColor();
 BOOL ResizeWindow(int x, int y, int width, int height);
+void Save();
+void Load();

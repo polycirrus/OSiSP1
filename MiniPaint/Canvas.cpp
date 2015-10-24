@@ -58,6 +58,8 @@ void				ZoomOut();
 void				OnZoomFactorChanged(double oldZoomFactor);
 void				GetAdjustedCursorPos(LPPOINT point);
 void				AdjustedToClientPoint(LPPOINT point);
+
+
 BOOL CreateCanvasWindow(HINSTANCE hInst, HWND parentHWnd, int x, int y, int width, int height)
 {
 	if (isWindowCreated)
@@ -232,47 +234,50 @@ void OnMouseMove(LPARAM lParam)
 		//area to be invalidated
 		RECT invRect;
 
-		switch (currentTool)
+		if (mousePos.x <= canvasWidth && mousePos.y <= canvasHeight)
 		{
-		case PaintTool::Pencil:
-		{
-			PolygonalChain* pl = (PolygonalChain*)actions.back();
-			POINT prevPoint;
-			pl->GetLastVertex(&prevPoint);
-			pl->AddVertex(mousePos.x, mousePos.y);
+			switch (currentTool)
+			{
+			case PaintTool::Pencil:
+			{
+				PolygonalChain* pl = (PolygonalChain*)actions.back();
+				POINT prevPoint;
+				pl->GetLastVertex(&prevPoint);
+				pl->AddVertex(mousePos.x, mousePos.y);
 
-			LineTo(bufferDC, mousePos.x, mousePos.y);
+				LineTo(bufferDC, mousePos.x, mousePos.y);
 
-			AdjustedToClientPoint(&prevPoint);
-			AdjustedToClientPoint(&mousePos);
-			invRect.bottom = max(prevPoint.y, mousePos.y) + invalidationExcess;
-			invRect.top = min(prevPoint.y, mousePos.y) - invalidationExcess;
-			invRect.left = min(prevPoint.x, mousePos.x) - invalidationExcess;
-			invRect.right = max(prevPoint.x, mousePos.x) + invalidationExcess;
-		}
-		break;
-		case PaintTool::Line:
-		{
-			Line* line = (Line*)actions.back();
-
-			POINT P1, prevP2;
-			line->GetP1(&P1);
-			line->GetP2(&prevP2);
-			
-			line->x2 = mousePos.x;
-			line->y2 = mousePos.y;
-			
-			AdjustedToClientPoint(&P1);
-			AdjustedToClientPoint(&prevP2);
-			AdjustedToClientPoint(&mousePos);
-			invRect.bottom = max(max(P1.y, prevP2.y), mousePos.y) + invalidationExcess;
-			invRect.top = min(min(P1.y, prevP2.y), mousePos.y) - invalidationExcess;
-			invRect.left = min(min(P1.x, prevP2.x), mousePos.x) - invalidationExcess;
-			invRect.right = max(max(P1.x, prevP2.x), mousePos.x) + invalidationExcess;
-		}
-		break;
-		default:
+				AdjustedToClientPoint(&prevPoint);
+				AdjustedToClientPoint(&mousePos);
+				invRect.bottom = max(prevPoint.y, mousePos.y) + invalidationExcess;
+				invRect.top = min(prevPoint.y, mousePos.y) - invalidationExcess;
+				invRect.left = min(prevPoint.x, mousePos.x) - invalidationExcess;
+				invRect.right = max(prevPoint.x, mousePos.x) + invalidationExcess;
+			}
 			break;
+			case PaintTool::Line:
+			{
+				Line* line = (Line*)actions.back();
+
+				POINT P1, prevP2;
+				line->GetP1(&P1);
+				line->GetP2(&prevP2);
+
+				line->x2 = mousePos.x;
+				line->y2 = mousePos.y;
+
+				AdjustedToClientPoint(&P1);
+				AdjustedToClientPoint(&prevP2);
+				AdjustedToClientPoint(&mousePos);
+				invRect.bottom = max(max(P1.y, prevP2.y), mousePos.y) + invalidationExcess;
+				invRect.top = min(min(P1.y, prevP2.y), mousePos.y) - invalidationExcess;
+				invRect.left = min(min(P1.x, prevP2.x), mousePos.x) - invalidationExcess;
+				invRect.right = max(max(P1.x, prevP2.x), mousePos.x) + invalidationExcess;
+			}
+			break;
+			default:
+				break;
+			}
 		}
 
 		InvalidateRect(thisWindow, &invRect, TRUE);
@@ -631,4 +636,47 @@ void AdjustedToClientPoint(LPPOINT point)
 {
 	point->x = round(point->x * zoomFactor - horizontalScrollPosition);
 	point->y = round(point->y * zoomFactor - verticalScrollPosition);
+}
+
+void Save()
+{
+	int iWidthMM = GetDeviceCaps(bufferDC, HORZSIZE);
+	int iHeightMM = GetDeviceCaps(bufferDC, VERTSIZE);
+	int iWidthPels = GetDeviceCaps(bufferDC, HORZRES);
+	int iHeightPels = GetDeviceCaps(bufferDC, VERTRES);
+
+	RECT rect;
+	rect.top = 0;
+	rect.bottom = round(canvasHeight * 100 * ((double)iHeightMM / (double)iHeightPels));
+	rect.left = 0;
+	rect.right = round(canvasWidth * 100 * ((double)iWidthMM / (double)iWidthPels));;
+
+	HDC hEF = CreateEnhMetaFile(nullptr, L"E:\\abc.emf", &rect, nullptr);
+	PaintAction* currShape;
+	for (std::list<PaintAction*>::const_iterator iterator = actions.begin(), end = actions.end(); iterator != end; ++iterator)
+	{
+		currShape = *iterator;
+		if (currShape != nullptr)
+		{
+			currShape->Draw(hEF, 0, 0);
+		}
+	}
+
+	HENHMETAFILE her = CloseEnhMetaFile(hEF);
+	DeleteEnhMetaFile(her);
+}
+
+void Load()
+{
+	HENHMETAFILE h = GetEnhMetaFile(L"E:\\abc.emf");
+
+	RECT boundingRect;
+	boundingRect.left = 0;
+	boundingRect.top = 0;
+	boundingRect.right = 2000;
+	boundingRect.bottom = 2000;
+
+	PlayEnhMetaFile(bufferDC, h, &boundingRect);
+
+	RequestRepaintWindow();
 }

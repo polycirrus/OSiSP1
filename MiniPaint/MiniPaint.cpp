@@ -165,6 +165,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					SetPenColor(color);
 			}
 				break;
+			case ID_FILE_SAVE:
+				Save();
+				Clear();
+				Load();
+				break;
             default:
                 return DefWindowProc(hWnd, message, wParam, lParam);
 				break;

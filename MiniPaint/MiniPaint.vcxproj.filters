@@ -42,6 +42,9 @@
     <ClInclude Include="PaintAction.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="MetafilePlayback.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -60,6 +63,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="PaintAction.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="MetafilePlayback.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
