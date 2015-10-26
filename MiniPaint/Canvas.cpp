@@ -4,6 +4,7 @@
 #include "Line.h"
 #include "PolygonalChain.h"
 #include <ctgmath>
+#include "MetafilePlayback.h"
 
 
 HINSTANCE hInstance;
@@ -14,7 +15,7 @@ bool isWindowCreated;
 
 int canvasWidth = 2000;
 int canvasHeight = 2000;
-HDC bufferDC;
+HDC bufferDC = nullptr;
 
 int verticalScrollPosition = 0;
 int verticalScrollMax;
@@ -528,6 +529,9 @@ void ClearBuffer()
 //Initializes the buffer DC.
 void InitBufferDC()
 {
+	if (bufferDC)
+		DeleteDC(bufferDC);
+
 	currentPen = CreatePen(PS_SOLID, 0, penColor);
 
 	PAINTSTRUCT ps;
@@ -638,45 +642,88 @@ void AdjustedToClientPoint(LPPOINT point)
 	point->y = round(point->y * zoomFactor - verticalScrollPosition);
 }
 
-void Save()
+void LoadFromMetafile(LPCWSTR filename)
+{
+	HENHMETAFILE hMetafile = GetEnhMetaFile(filename);
+
+	HDC dc = bufferDC ? bufferDC : GetDC(thisWindow);
+	int iWidthMM = GetDeviceCaps(dc, HORZSIZE);
+	int iHeightMM = GetDeviceCaps(dc, VERTSIZE);
+	int iWidthPels = GetDeviceCaps(dc, HORZRES);
+	int iHeightPels = GetDeviceCaps(dc, VERTRES);
+	if (!bufferDC)
+		ReleaseDC(thisWindow, dc);
+
+	ENHMETAHEADER metafileHeader;
+	GetEnhMetaFileHeader(hMetafile, sizeof(ENHMETAHEADER), &metafileHeader);
+
+	canvasWidth = round(metafileHeader.rclFrame.right / (double)iWidthMM * (double)iWidthPels / 100);
+	canvasHeight = round(metafileHeader.rclFrame.bottom / (double)iHeightMM * (double)iHeightPels / 100);
+
+	InitBufferDC();
+
+	actions.clear();
+	actions.push_back(new MetafilePlayback(hMetafile));
+
+	RefreshBuffer();
+	RequestRepaintWindow();
+}
+
+void SaveToMetafile(LPCWSTR filename)
 {
 	int iWidthMM = GetDeviceCaps(bufferDC, HORZSIZE);
 	int iHeightMM = GetDeviceCaps(bufferDC, VERTSIZE);
 	int iWidthPels = GetDeviceCaps(bufferDC, HORZRES);
 	int iHeightPels = GetDeviceCaps(bufferDC, VERTRES);
 
-	RECT rect;
-	rect.top = 0;
-	rect.bottom = round(canvasHeight * 100 * ((double)iHeightMM / (double)iHeightPels));
-	rect.left = 0;
-	rect.right = round(canvasWidth * 100 * ((double)iWidthMM / (double)iWidthPels));;
+	RECT boundingRect;
+	boundingRect.top = 0;
+	boundingRect.bottom = round(canvasHeight * 100 * (double)iHeightMM / (double)iHeightPels);
+	boundingRect.left = 0;
+	boundingRect.right = round(canvasWidth * 100 * (double)iWidthMM / (double)iWidthPels);
 
-	HDC hEF = CreateEnhMetaFile(nullptr, L"E:\\abc.emf", &rect, nullptr);
+	HDC hMetafileDC = CreateEnhMetaFile(nullptr, filename, &boundingRect, nullptr);
+
 	PaintAction* currShape;
 	for (std::list<PaintAction*>::const_iterator iterator = actions.begin(), end = actions.end(); iterator != end; ++iterator)
 	{
 		currShape = *iterator;
 		if (currShape != nullptr)
 		{
-			currShape->Draw(hEF, 0, 0);
+			currShape->Draw(hMetafileDC, 0, 0);
 		}
 	}
 
-	HENHMETAFILE her = CloseEnhMetaFile(hEF);
-	DeleteEnhMetaFile(her);
+	HENHMETAFILE hMetafile = CloseEnhMetaFile(hMetafileDC);
+	DeleteEnhMetaFile(hMetafile);
 }
 
-void Load()
+BOOL Undo()
 {
-	HENHMETAFILE h = GetEnhMetaFile(L"E:\\abc.emf");
+	if (actions.empty())
+		return FALSE;
 
-	RECT boundingRect;
-	boundingRect.left = 0;
-	boundingRect.top = 0;
-	boundingRect.right = 2000;
-	boundingRect.bottom = 2000;
+	PaintAction* action = actions.back();
+	actions.pop_back();
+	undoneActions.push_back(action);
 
-	PlayEnhMetaFile(bufferDC, h, &boundingRect);
-
+	RefreshBuffer();
 	RequestRepaintWindow();
+
+	return TRUE;
+}
+
+BOOL Redo()
+{
+	if (undoneActions.empty())
+		return FALSE;
+
+	PaintAction* action = undoneActions.back();
+	undoneActions.pop_back();
+	actions.push_back(action);
+
+	RefreshBuffer();
+	RequestRepaintWindow();
+
+	return TRUE;
 }

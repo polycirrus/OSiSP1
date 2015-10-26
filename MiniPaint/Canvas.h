@@ -10,4 +10,7 @@ void SetPenColor(COLORREF color);
 COLORREF GetPenColor();
 BOOL ResizeWindow(int x, int y, int width, int height);
 void Save();
-void Load();
+void LoadFromMetafile(LPCWSTR filename);
+void SaveToMetafile(LPCWSTR filename);
+BOOL Undo();
+BOOL Redo();

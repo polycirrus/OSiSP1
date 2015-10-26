@@ -166,9 +166,50 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 				break;
 			case ID_FILE_SAVE:
-				Save();
-				Clear();
-				Load();
+			{
+				wchar_t filename[300];
+				OPENFILENAME fileInfo;
+				ZeroMemory(&fileInfo, sizeof(OPENFILENAME));
+				fileInfo.lStructSize = sizeof(OPENFILENAME);
+				fileInfo.hwndOwner = g_hWnd;
+				fileInfo.hInstance = hInst;
+				fileInfo.lpstrFilter = L"Enhanced metafile\0*.emf\0";
+				fileInfo.nFilterIndex = 1;
+				fileInfo.lpstrFile = filename;
+				fileInfo.lpstrFile[0] = '\0';
+				fileInfo.nMaxFile = 300;
+				fileInfo.lpstrDefExt = L".emf";
+
+				GetSaveFileName(&fileInfo);
+
+				SaveToMetafile(fileInfo.lpstrFile);
+			}
+				break;
+			case ID_FILE_OPEN:
+			{
+				wchar_t filename[300];
+				OPENFILENAME fileInfo;
+				ZeroMemory(&fileInfo, sizeof(OPENFILENAME));
+				fileInfo.lStructSize = sizeof(OPENFILENAME);
+				fileInfo.hwndOwner = g_hWnd;
+				fileInfo.hInstance = hInst;
+				fileInfo.lpstrFilter = L"Enhanced metafile\0*.emf\0";
+				fileInfo.nFilterIndex = 1;
+				fileInfo.lpstrFile = filename;
+				fileInfo.lpstrFile[0] = '\0';
+				fileInfo.nMaxFile = 300;
+				fileInfo.Flags = OFN_FILEMUSTEXIST;
+
+				GetOpenFileName(&fileInfo);
+
+				LoadFromMetafile(fileInfo.lpstrFile);
+			}
+				break;
+			case ID_EDIT_UNDO:
+				Undo();
+				break;
+			case ID_EDIT_REDO:
+				Redo();
 				break;
             default:
                 return DefWindowProc(hWnd, message, wParam, lParam);
