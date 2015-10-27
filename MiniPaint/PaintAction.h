@@ -11,5 +11,7 @@ enum class PaintTool
 	Pencil,
 	Line,
 	Polyline,
-	Rectangle
+	Rectangle,
+	Ellipse,
+	Eraser
 };

@@ -6,6 +6,7 @@
 #include <ctgmath>
 #include "MetafilePlayback.h"
 #include "Rectangle.h"
+#include "EllipseAction.h"
 
 
 HINSTANCE hInstance;
@@ -38,6 +39,7 @@ std::list<PaintAction*> undoneActions;
 COLORREF penColor = RGB(0, 0, 0);
 COLORREF brushColor = RGB(255, 255, 255);
 HPEN currentPen;
+HPEN eraser;
 HBRUSH currentBrush;
 int penThickness = 1;
 int penThicknessDelta = 2;
@@ -234,6 +236,12 @@ void OnLButtonDown()
 		actions.push_back(rect);
 	}
 		break;
+	case PaintTool::Ellipse:
+	{
+		EllipseAction* ellipse = new EllipseAction(&mousePos);
+		actions.push_back(ellipse);
+	}
+		break;
 	default:
 		break;
 	}
@@ -247,6 +255,7 @@ void OnLButtonUp()
 	{
 	case PaintTool::Line:
 	case PaintTool::Rectangle:
+	case PaintTool::Ellipse:
 	{
 		actions.back()->Draw(bufferDC, 0, 0);
 	}
@@ -319,10 +328,28 @@ void OnMouseMove(LPARAM lParam)
 				AdjustedToClientPoint(&P1);
 				AdjustedToClientPoint(&prevP2);
 				AdjustedToClientPoint(&mousePos);
-				invRect.bottom = max(max(P1.y, prevP2.y), mousePos.y) + 2 * invalidationExcess;
-				invRect.top = min(min(P1.y, prevP2.y), mousePos.y) - 2 * invalidationExcess;
-				invRect.left = min(min(P1.x, prevP2.x), mousePos.x) - 2 * invalidationExcess;
-				invRect.right = max(max(P1.x, prevP2.x), mousePos.x) + 2 * invalidationExcess;
+				invRect.bottom = max(max(P1.y, prevP2.y), mousePos.y) + invalidationExcess;
+				invRect.top = min(min(P1.y, prevP2.y), mousePos.y) - invalidationExcess;
+				invRect.left = min(min(P1.x, prevP2.x), mousePos.x) - invalidationExcess;
+				invRect.right = max(max(P1.x, prevP2.x), mousePos.x) + invalidationExcess;
+			}
+			break;
+			case PaintTool::Ellipse:
+			{
+				EllipseAction* ellipse = (EllipseAction*)actions.back();
+
+				POINT P1, prevP2;
+				ellipse->GetP1(&P1);
+				ellipse->GetP2(&prevP2);
+				ellipse->SetP2(&mousePos);
+
+				AdjustedToClientPoint(&P1);
+				AdjustedToClientPoint(&prevP2);
+				AdjustedToClientPoint(&mousePos);
+				invRect.bottom = max(max(P1.y, prevP2.y), mousePos.y) + invalidationExcess;
+				invRect.top = min(min(P1.y, prevP2.y), mousePos.y) - invalidationExcess;
+				invRect.left = min(min(P1.x, prevP2.x), mousePos.x) - invalidationExcess;
+				invRect.right = max(max(P1.x, prevP2.x), mousePos.x) + invalidationExcess;
 			}
 			break;
 			default:
@@ -418,6 +445,18 @@ void OnPaint()
 			Rectangle(hdc, p1.x, p1.y, p2.x, p2.y);
 		}
 			break;
+		case PaintTool::Ellipse:
+		{
+			POINT p1, p2;
+			EllipseAction* ellipse = (EllipseAction*)actions.back();
+			ellipse->GetP1(&p1);
+			ellipse->GetP2(&p2);
+			AdjustedToClientPoint(&p1);
+			AdjustedToClientPoint(&p2);
+
+			Ellipse(hdc, p1.x, p1.y, p2.x, p2.y);
+		}
+		break;
 		default:
 			break;
 		}
@@ -731,6 +770,7 @@ void DecreasePenThickness()
 void ResetPen()
 {
 	currentPen = CreatePen(PS_SOLID, penThickness, penColor);
+	eraser = CreatePen(PS_SOLID, penThickness, GetSysColor(COLOR_WINDOW));
 	SelectObject(bufferDC, currentPen);
 }
 

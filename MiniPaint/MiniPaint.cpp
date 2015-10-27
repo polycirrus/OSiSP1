@@ -220,6 +220,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				LoadFromMetafile(fileInfo.lpstrFile);
 			}
 				break;
+			case ID_TOOLS_INCREASEPENTHICKNESS:
+				IncreasePenThickness();
+				break;
+			case ID_TOOLS_DECREASEPENTHICKNESS:
+				DecreasePenThickness();
+				break;
 			case ID_EDIT_UNDO:
 				Undo();
 				break;

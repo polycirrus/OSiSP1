@@ -146,6 +146,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Canvas.h" />
+    <ClInclude Include="EllipseAction.h" />
     <ClInclude Include="Line.h" />
     <ClInclude Include="MetafilePlayback.h" />
     <ClInclude Include="MiniPaint.h" />
@@ -158,6 +159,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Canvas.cpp" />
+    <ClCompile Include="EllipseAction.cpp" />
     <ClCompile Include="Line.cpp" />
     <ClCompile Include="MetafilePlayback.cpp" />
     <ClCompile Include="MiniPaint.cpp" />
