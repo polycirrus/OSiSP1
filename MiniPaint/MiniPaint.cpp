@@ -158,11 +158,26 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				ExclusiveCheckMenuItem(ID_TOOLS_LINE);
 				SetPaintTool(PaintTool::Line);
 				break;
+			case ID_TOOLS_POLYLINE:
+				ExclusiveCheckMenuItem(ID_TOOLS_POLYLINE);
+				SetPaintTool(PaintTool::Polyline);
+				break;
+			case ID_TOOLS_RECTANGLE:
+				ExclusiveCheckMenuItem(ID_TOOLS_RECTANGLE);
+				SetPaintTool(PaintTool::Rectangle);
+				break;
 			case ID_TOOLS_PENCOLOR:
 			{
 				COLORREF color = GetPenColor();
 				if (ShowColorDialog(&color))
 					SetPenColor(color);
+			}
+				break;
+			case ID_TOOLS_BRUSHCOLOR:
+			{
+				COLORREF color = GetBrushColor();
+				if (ShowColorDialog(&color))
+					SetBrushColor(color);
 			}
 				break;
 			case ID_FILE_SAVE:

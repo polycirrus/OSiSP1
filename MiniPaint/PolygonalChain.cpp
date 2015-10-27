@@ -42,3 +42,17 @@ void PolygonalChain::GetLastVertex(LPPOINT point)
 	point->x = lastVertex->x;
 	point->y = lastVertex->y;
 }
+
+void PolygonalChain::SetLastVertex(LPPOINT point)
+{
+	POINT* lastVertex = vertices.back();
+	lastVertex->x = point->x;
+	lastVertex->y = point->y;
+}
+
+void PolygonalChain::GetSecondLastVertex(LPPOINT point)
+{
+	POINT* lp = *(++(vertices.rbegin()));
+	point->x = lp->x;
+	point->y = lp->y;
+}

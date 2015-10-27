@@ -12,6 +12,8 @@ public:
 	void Draw(HDC hdc, int xOffset, int yOffset);
 	void AddVertex(int x, int y);
 	void GetLastVertex(LPPOINT point);
+	void SetLastVertex(LPPOINT point);
+	void GetSecondLastVertex(LPPOINT point);
 private:
 	std::list<POINT*> vertices;
 };

@@ -9,5 +9,7 @@ enum class PaintTool
 {
 	None,
 	Pencil,
-	Line
+	Line,
+	Polyline,
+	Rectangle
 };

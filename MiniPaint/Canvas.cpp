@@ -5,6 +5,7 @@
 #include "PolygonalChain.h"
 #include <ctgmath>
 #include "MetafilePlayback.h"
+#include "Rectangle.h"
 
 
 HINSTANCE hInstance;
@@ -28,13 +29,18 @@ double zoomDelta = 0.2;
 int invalidationExcess = 3;
 
 bool isDragging;
+bool polylineDragging;
 
 PaintTool currentTool = PaintTool::None;
 std::list<PaintAction*> actions;
 std::list<PaintAction*> undoneActions;
 
 COLORREF penColor = RGB(0, 0, 0);
+COLORREF brushColor = RGB(255, 255, 255);
 HPEN currentPen;
+HBRUSH currentBrush;
+int penThickness = 1;
+int penThicknessDelta = 2;
 
 
 ATOM				RegisterCanvasAreaClass();
@@ -59,6 +65,9 @@ void				ZoomOut();
 void				OnZoomFactorChanged(double oldZoomFactor);
 void				GetAdjustedCursorPos(LPPOINT point);
 void				AdjustedToClientPoint(LPPOINT point);
+void				OnRButtonDown();
+void				ResetPen();
+void				ResetBrush();
 
 
 BOOL CreateCanvasWindow(HINSTANCE hInst, HWND parentHWnd, int x, int y, int width, int height)
@@ -132,21 +141,18 @@ LRESULT CALLBACK CanvasWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lP
 		OnPaint();
 		break;
 	case WM_LBUTTONDOWN:
-	{
 		OnLButtonDown();
-	}
-	break;
+		break;
 	case WM_MOUSELEAVE:
 	case WM_LBUTTONUP:
-	{
 		OnLButtonUp();
-	}
-	break;
+		break;
 	case WM_MOUSEMOVE:
-	{
 		OnMouseMove(lParam);
-	}
-	break;
+		break;
+	case WM_RBUTTONDOWN:
+		OnRButtonDown();
+		break;
 	default:
 		return DefWindowProc(hWnd, message, wParam, lParam);
 	}
@@ -158,7 +164,7 @@ void OnMouseWheel(WPARAM wParam)
 	short int rotationDistance = (short int)HIWORD(wParam);
 	int downKeys = LOWORD(wParam);
 
-	if (downKeys & MK_CONTROL)		//Ctrl(+Shift)+Wheel - zoom
+	if (downKeys & MK_CONTROL)		//Ctrl+Wheel - zoom
 	{
 		rotationDistance > 0 ? ZoomIn() : ZoomOut();
 	}
@@ -197,13 +203,37 @@ void OnLButtonDown()
 		pl->AddVertex(mousePos.x, mousePos.y);
 		actions.push_back(pl);
 	}
-	break;
+		break;
 	case PaintTool::Line:
 	{
 		Line* line = new Line(mousePos.x, mousePos.y);
 		actions.push_back(line);
 	}
-	break;
+		break;
+	case PaintTool::Polyline:
+	{
+		PolygonalChain* pl;
+		if (!polylineDragging)
+		{
+			polylineDragging = true;
+			pl = new PolygonalChain();
+			actions.push_back(pl);
+		}
+		else
+		{
+			pl = (PolygonalChain*)actions.back();
+			pl->Draw(bufferDC, 0, 0);
+		}
+		pl->AddVertex(mousePos.x, mousePos.y);
+		pl->AddVertex(mousePos.x, mousePos.y);
+	}
+		break;
+	case PaintTool::Rectangle:
+	{
+		RectangleAction* rect = new RectangleAction(&mousePos);
+		actions.push_back(rect);
+	}
+		break;
 	default:
 		break;
 	}
@@ -216,6 +246,7 @@ void OnLButtonUp()
 	switch (currentTool)
 	{
 	case PaintTool::Line:
+	case PaintTool::Rectangle:
 	{
 		actions.back()->Draw(bufferDC, 0, 0);
 	}
@@ -276,6 +307,24 @@ void OnMouseMove(LPARAM lParam)
 				invRect.right = max(max(P1.x, prevP2.x), mousePos.x) + invalidationExcess;
 			}
 			break;
+			case PaintTool::Rectangle:
+			{
+				RectangleAction* rect = (RectangleAction*)actions.back();
+
+				POINT P1, prevP2;
+				rect->GetP1(&P1);
+				rect->GetP2(&prevP2);
+				rect->SetP2(&mousePos);
+
+				AdjustedToClientPoint(&P1);
+				AdjustedToClientPoint(&prevP2);
+				AdjustedToClientPoint(&mousePos);
+				invRect.bottom = max(max(P1.y, prevP2.y), mousePos.y) + 2 * invalidationExcess;
+				invRect.top = min(min(P1.y, prevP2.y), mousePos.y) - 2 * invalidationExcess;
+				invRect.left = min(min(P1.x, prevP2.x), mousePos.x) - 2 * invalidationExcess;
+				invRect.right = max(max(P1.x, prevP2.x), mousePos.x) + 2 * invalidationExcess;
+			}
+			break;
 			default:
 				break;
 			}
@@ -283,6 +332,41 @@ void OnMouseMove(LPARAM lParam)
 
 		InvalidateRect(thisWindow, &invRect, TRUE);
 		UpdateWindow(thisWindow);
+	}
+
+	if (polylineDragging)
+	{
+		RECT invRect;
+		POINT mousePos;
+		GetAdjustedCursorPos(&mousePos);
+
+		PolygonalChain* pl = (PolygonalChain*)actions.back();
+
+		POINT P1, prevP2;
+		pl->GetSecondLastVertex(&P1);
+		pl->GetLastVertex(&prevP2);
+		pl->SetLastVertex(&mousePos);
+
+		AdjustedToClientPoint(&P1);
+		AdjustedToClientPoint(&prevP2);
+		AdjustedToClientPoint(&mousePos);
+		invRect.bottom = max(max(P1.y, prevP2.y), mousePos.y) + invalidationExcess;
+		invRect.top = min(min(P1.y, prevP2.y), mousePos.y) - invalidationExcess;
+		invRect.left = min(min(P1.x, prevP2.x), mousePos.x) - invalidationExcess;
+		invRect.right = max(max(P1.x, prevP2.x), mousePos.x) + invalidationExcess;
+
+		InvalidateRect(thisWindow, &invRect, TRUE);
+		UpdateWindow(thisWindow);
+	}
+}
+
+
+void OnRButtonDown()
+{
+	if (polylineDragging)
+	{
+		polylineDragging = false;
+		actions.back()->Draw(bufferDC, 0, 0);
 	}
 }
 
@@ -292,6 +376,7 @@ void OnPaint()
 	PAINTSTRUCT ps;
 	HDC hdc = BeginPaint(thisWindow, &ps);
 	SelectObject(hdc, currentPen);
+	SelectObject(hdc, currentBrush);
 
 	RECT clientArea;
 	GetClientRect(thisWindow, &clientArea);
@@ -310,15 +395,45 @@ void OnPaint()
 		{
 		case PaintTool::Line:
 		{
+			POINT p1, p2;
 			Line* line = (Line*)actions.back();
-			
-			MoveToEx(hdc, round(line->x1 * zoomFactor), round(line->y1 * zoomFactor), nullptr);
-			LineTo(hdc, round(line->x2 * zoomFactor), round(line->y2 * zoomFactor));
+			line->GetP1(&p1);
+			line->GetP2(&p2);
+			AdjustedToClientPoint(&p1);
+			AdjustedToClientPoint(&p2);
+
+			MoveToEx(hdc, p1.x, p1.y, nullptr);
+			LineTo(hdc, p2.x, p2.y);
 		}
 		break;
+		case PaintTool::Rectangle:
+		{
+			POINT p1, p2;
+			RectangleAction* rect = (RectangleAction*)actions.back();
+			rect->GetP1(&p1);
+			rect->GetP2(&p2);
+			AdjustedToClientPoint(&p1);
+			AdjustedToClientPoint(&p2);
+
+			Rectangle(hdc, p1.x, p1.y, p2.x, p2.y);
+		}
+			break;
 		default:
 			break;
 		}
+	}
+
+	if (polylineDragging)
+	{
+		POINT p1, p2;
+		PolygonalChain* pl = (PolygonalChain*)actions.back();
+		pl->GetSecondLastVertex(&p1);
+		pl->GetLastVertex(&p2);
+		AdjustedToClientPoint(&p1);
+		AdjustedToClientPoint(&p2);
+
+		MoveToEx(hdc, p1.x, p1.y, nullptr);
+		LineTo(hdc, p2.x, p2.y);
 	}
 
 	EndPaint(thisWindow, &ps);
@@ -532,8 +647,6 @@ void InitBufferDC()
 	if (bufferDC)
 		DeleteDC(bufferDC);
 
-	currentPen = CreatePen(PS_SOLID, 0, penColor);
-
 	PAINTSTRUCT ps;
 	HDC hdc = BeginPaint(thisWindow, &ps);
 
@@ -544,6 +657,9 @@ void InitBufferDC()
 	COLORREF cr = GetBkColor(hdc);
 	SetBkColor(bufferDC, cr);
 	ClearBuffer();
+
+	ResetPen();
+	ResetBrush();
 
 	EndPaint(thisWindow, &ps);
 }
@@ -578,14 +694,50 @@ void SetPaintTool(PaintTool tool)
 void SetPenColor(COLORREF color)
 {
 	penColor = color;
-
-	currentPen = CreatePen(PS_SOLID, 0, color);
-	SelectObject(bufferDC, currentPen);
+	ResetPen();
 }
 
 COLORREF GetPenColor()
 {
 	return penColor;
+}
+
+void SetBrushColor(COLORREF color)
+{
+	brushColor = color;
+	ResetBrush();
+}
+
+COLORREF GetBrushColor()
+{
+	return brushColor;
+}
+
+void IncreasePenThickness()
+{
+	penThickness += penThicknessDelta;
+	ResetPen();
+}
+
+void DecreasePenThickness()
+{
+	if (penThickness > penThicknessDelta)
+	{
+		penThickness -= penThicknessDelta;
+		ResetPen();
+	}
+}
+
+void ResetPen()
+{
+	currentPen = CreatePen(PS_SOLID, penThickness, penColor);
+	SelectObject(bufferDC, currentPen);
+}
+
+void ResetBrush()
+{
+	currentBrush = CreateSolidBrush(brushColor);
+	SelectObject(bufferDC, currentBrush);
 }
 
 BOOL ResizeWindow(int x, int y, int width, int height)
